@@ -14,8 +14,6 @@ use Pirabyte\ERecht24Laravel\Exceptions\MissingApiKeyException;
 
 class ERecht24
 {
-    public const DEMO_PLUGIN_KEY = '3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v';
-
     public function __construct(
         private readonly LegalTextClient $client,
         private readonly ConfigRepository $config,
@@ -220,17 +218,7 @@ class ERecht24
 
     private function pluginKey(): ?string
     {
-        $pluginKey = $this->configuredString('erecht24.plugin_key');
-
-        if ($pluginKey !== null) {
-            return $pluginKey;
-        }
-
-        if (! $this->useDemoPluginKey()) {
-            return null;
-        }
-
-        return $this->configuredString('erecht24.demo_plugin_key') ?? self::DEMO_PLUGIN_KEY;
+        return $this->configuredString('erecht24.plugin_key');
     }
 
     private function defaultLanguage(): string
@@ -244,14 +232,6 @@ class ERecht24
     {
         return filter_var(
             $this->config->get('erecht24.cache.enabled', true),
-            FILTER_VALIDATE_BOOLEAN,
-        );
-    }
-
-    private function useDemoPluginKey(): bool
-    {
-        return filter_var(
-            $this->config->get('erecht24.use_demo_plugin_key', true),
             FILTER_VALIDATE_BOOLEAN,
         );
     }

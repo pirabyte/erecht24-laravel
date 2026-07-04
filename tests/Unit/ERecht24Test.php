@@ -131,8 +131,8 @@ it('uses the configured plugin key when one is set', function () {
     expect($client->pluginKeys)->toBe(['plugin-key']);
 });
 
-it('falls back to the documented eRecht24 demo plugin key', function () {
-    $this->app['config']->set('erecht24.plugin_key', null);
+it('uses the configured plugin key fallback from config', function () {
+    $this->app['config']->set('erecht24.plugin_key', '3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v');
 
     $client = new FakeLegalTextClient([
         LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
@@ -141,21 +141,7 @@ it('falls back to the documented eRecht24 demo plugin key', function () {
 
     $service->imprint();
 
-    expect($client->pluginKeys)->toBe([ERecht24::DEMO_PLUGIN_KEY]);
-});
-
-it('can disable the documented eRecht24 demo plugin key fallback', function () {
-    $this->app['config']->set('erecht24.plugin_key', null);
-    $this->app['config']->set('erecht24.use_demo_plugin_key', false);
-
-    $client = new FakeLegalTextClient([
-        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
-    ]);
-    $service = makeERecht24Service($client);
-
-    $service->imprint();
-
-    expect($client->pluginKeys)->toBe([null]);
+    expect($client->pluginKeys)->toBe(['3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v']);
 });
 
 it('caches successful responses when cache is enabled', function () {

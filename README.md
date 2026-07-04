@@ -29,14 +29,12 @@ Optional configuration:
 ```dotenv
 # Only set this if eRecht24 provided a plugin key for your integration.
 ERECHT24_PLUGIN_KEY=
-# Uses eRecht24's documented demo plugin key when ERECHT24_PLUGIN_KEY is empty.
-ERECHT24_USE_DEMO_PLUGIN_KEY=true
 ERECHT24_LANGUAGE=de
 ERECHT24_CACHE_ENABLED=true
 ERECHT24_CACHE_TTL=3600
 ```
 
-`ERECHT24_PLUGIN_KEY` may be left unset when you only have an API key. In that case the package sends eRecht24's documented demo plugin key by default. Set `ERECHT24_USE_DEMO_PLUGIN_KEY=false` to disable that fallback. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
+`ERECHT24_PLUGIN_KEY` may be left unset when you only have an API key. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
 
 ## Usage
 
