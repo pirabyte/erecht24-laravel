@@ -44,7 +44,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -56,8 +58,15 @@ jobs:
       - name: Validate composer
         run: composer validate --strict
 
-      - name: Select dependency versions
-        run: composer require --no-update "illuminate/support:${{ matrix.laravel_constraint }}" "orchestra/testbench:${{ matrix.testbench_constraint }}" "pestphp/pest:${{ matrix.pest_constraint }}" "pestphp/pest-plugin-laravel:${{ matrix.pest_laravel_constraint }}"
+      - name: Select Laravel version
+        env:
+          COMPOSER_NO_BLOCKING: 1
+        run: composer require --no-update "illuminate/support:${{ matrix.laravel_constraint }}"
+
+      - name: Select test dependency versions
+        env:
+          COMPOSER_NO_BLOCKING: 1
+        run: composer require --dev --no-update "orchestra/testbench:${{ matrix.testbench_constraint }}" "pestphp/pest:${{ matrix.pest_constraint }}" "pestphp/pest-plugin-laravel:${{ matrix.pest_laravel_constraint }}"
 
       - name: Install dependencies
         run: composer install --prefer-dist --no-progress --no-interaction
@@ -80,4 +89,3 @@ jobs:
           if [ "${{ needs.test.result }}" != "success" ]; then
             exit 1
           fi
-
