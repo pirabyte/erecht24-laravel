@@ -1,0 +1,58 @@
+{
+    "name": "pirabyte/erecht24-laravel",
+    "description": "Laravel integration for the eRecht24 Rechtstexte SDK.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "laravel",
+        "erecht24",
+        "rechtstexte",
+        "legal",
+        "imprint",
+        "privacy-policy"
+    ],
+    "require": {
+        "php": "^8.2",
+        "erecht24/rechtstexte-sdk": "^1.0",
+        "illuminate/support": "^10.0|^11.0|^12.0|^13.0"
+    },
+    "require-dev": {
+        "mockery/mockery": "^1.6",
+        "orchestra/testbench": "^8.37|^9.17|^10.11|^11.1",
+        "pestphp/pest": "^2.36|^3.8|^4.7",
+        "pestphp/pest-plugin-laravel": "^2.4|^3.2|^4.1",
+        "laravel/pint": "^1.29"
+    },
+    "autoload": {
+        "psr-4": {
+            "Pirabyte\\ERecht24Laravel\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Pirabyte\\ERecht24Laravel\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Pirabyte\\ERecht24Laravel\\ERecht24ServiceProvider"
+            ],
+            "aliases": {
+                "ERecht24": "Pirabyte\\ERecht24Laravel\\Facades\\ERecht24"
+            }
+        }
+    },
+    "scripts": {
+        "test": "vendor/bin/pest",
+        "format": "vendor/bin/pint",
+        "format:test": "vendor/bin/pint --test"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    }
+}
+

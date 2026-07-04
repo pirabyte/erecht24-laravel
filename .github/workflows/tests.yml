@@ -1,0 +1,83 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Laravel ${{ matrix.laravel }} / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - laravel: '10'
+            laravel_constraint: ^10.0
+            php: '8.2'
+            testbench_constraint: ^8.37
+            pest_constraint: ^2.36
+            pest_laravel_constraint: ^2.4
+          - laravel: '11'
+            laravel_constraint: ^11.0
+            php: '8.2'
+            testbench_constraint: ^9.17
+            pest_constraint: ^3.8
+            pest_laravel_constraint: ^3.2
+          - laravel: '12'
+            laravel_constraint: ^12.0
+            php: '8.3'
+            testbench_constraint: ^10.11
+            pest_constraint: ^3.8
+            pest_laravel_constraint: ^3.2
+          - laravel: '13'
+            laravel_constraint: ^13.0
+            php: '8.4'
+            testbench_constraint: ^11.1
+            pest_constraint: ^4.7
+            pest_laravel_constraint: ^4.1
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: curl, json
+          coverage: none
+
+      - name: Validate composer
+        run: composer validate --strict
+
+      - name: Select dependency versions
+        run: composer require --no-update "illuminate/support:${{ matrix.laravel_constraint }}" "orchestra/testbench:${{ matrix.testbench_constraint }}" "pestphp/pest:${{ matrix.pest_constraint }}" "pestphp/pest-plugin-laravel:${{ matrix.pest_laravel_constraint }}"
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Check formatting
+        run: vendor/bin/pint --test
+
+      - name: Run tests
+        run: vendor/bin/pest
+
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    needs:
+      - test
+    if: ${{ always() }}
+    steps:
+      - name: Check matrix result
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            exit 1
+          fi
+

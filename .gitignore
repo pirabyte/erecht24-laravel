@@ -1,0 +1,12 @@
+/vendor
+/.phpunit.cache
+/.pest
+/coverage
+/.idea
+/.vscode
+.DS_Store
+.env
+.env.*
+!.env.example
+composer.lock
+
