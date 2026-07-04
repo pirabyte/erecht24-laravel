@@ -53,19 +53,16 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: curl, json
+          tools: composer:2.8.6
           coverage: none
 
       - name: Validate composer
         run: composer validate --strict
 
       - name: Select Laravel version
-        env:
-          COMPOSER_NO_BLOCKING: 1
         run: composer require --no-update "illuminate/support:${{ matrix.laravel_constraint }}"
 
       - name: Select test dependency versions
-        env:
-          COMPOSER_NO_BLOCKING: 1
         run: composer require --dev --no-update "orchestra/testbench:${{ matrix.testbench_constraint }}" "pestphp/pest:${{ matrix.pest_constraint }}" "pestphp/pest-plugin-laravel:${{ matrix.pest_laravel_constraint }}"
 
       - name: Install dependencies
