@@ -53,7 +53,7 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: curl, json
-          tools: composer:2.8.6
+          tools: composer:2.2.28
           coverage: none
 
       - name: Validate composer
