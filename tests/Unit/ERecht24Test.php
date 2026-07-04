@@ -120,6 +120,44 @@ it('throws for unsupported document types', function () {
     expect(fn () => $service->document('terms'))->toThrow(UnsupportedLegalTextTypeException::class);
 });
 
+it('uses the configured plugin key when one is set', function () {
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $service->imprint();
+
+    expect($client->pluginKeys)->toBe(['plugin-key']);
+});
+
+it('falls back to the documented eRecht24 demo plugin key', function () {
+    $this->app['config']->set('erecht24.plugin_key', null);
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $service->imprint();
+
+    expect($client->pluginKeys)->toBe([ERecht24::DEMO_PLUGIN_KEY]);
+});
+
+it('can disable the documented eRecht24 demo plugin key fallback', function () {
+    $this->app['config']->set('erecht24.plugin_key', null);
+    $this->app['config']->set('erecht24.use_demo_plugin_key', false);
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $service->imprint();
+
+    expect($client->pluginKeys)->toBe([null]);
+});
+
 it('caches successful responses when cache is enabled', function () {
     $this->app['config']->set('erecht24.cache.enabled', true);
 
@@ -291,6 +329,11 @@ final class FakeLegalTextClient implements LegalTextClient
     public int $calls = 0;
 
     /**
+     * @var array<int, string|null>
+     */
+    public array $pluginKeys = [];
+
+    /**
      * @param  array<string, LegalText>  $documents
      */
     public function __construct(private readonly array $documents = []) {}
@@ -298,6 +341,7 @@ final class FakeLegalTextClient implements LegalTextClient
     public function get(LegalTextType $type, string $apiKey, ?string $pluginKey = null): LegalText
     {
         $this->calls++;
+        $this->pluginKeys[] = $pluginKey;
 
         return $this->documents[$type->value] ?? legalTextFor($type);
     }
