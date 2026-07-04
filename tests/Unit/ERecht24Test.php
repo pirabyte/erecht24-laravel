@@ -157,7 +157,7 @@ it('stores cache entries as scalar payloads for serialized cache stores', functi
         ]);
 });
 
-it('refreshes legacy cached objects that cannot be safely unserialized', function () {
+it('migrates legacy cached objects to scalar payloads', function () {
     useSerializedArrayCache();
 
     $this->app['cache']->store()->put(
@@ -175,6 +175,33 @@ it('refreshes legacy cached objects that cannot be safely unserialized', functio
         ),
         3600,
     );
+
+    $legacyObjectUnserializesSafely = $this->app['cache']->store()->get('erecht24:imprint:de') instanceof LegalTextData;
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $document = $service->imprint();
+    $expectedHtml = $legacyObjectUnserializesSafely ? '<p>Legacy cached object.</p>' : '<p>Deutsch</p>';
+    $expectedCalls = $legacyObjectUnserializesSafely ? 0 : 1;
+
+    expect($document)
+        ->toBeInstanceOf(LegalTextData::class)
+        ->and($document->html)->toBe($expectedHtml)
+        ->and($client->calls)->toBe($expectedCalls)
+        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+            'type' => LegalTextType::Imprint->value,
+            'html' => $expectedHtml,
+            'language' => 'de',
+        ]);
+});
+
+it('refreshes invalid cache entries', function () {
+    useSerializedArrayCache();
+
+    $this->app['cache']->store()->put('erecht24:imprint:de', 'invalid-cache-value', 3600);
 
     $client = new FakeLegalTextClient([
         LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
