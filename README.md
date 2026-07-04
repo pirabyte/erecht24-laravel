@@ -18,17 +18,23 @@ php artisan vendor:publish --tag=erecht24-config
 
 ## Configuration
 
-Set the relevant environment variables:
+Set the required API key:
 
 ```dotenv
 ERECHT24_API_KEY=
+```
+
+Optional configuration:
+
+```dotenv
+# Only set this if eRecht24 provided a plugin key for your integration.
 ERECHT24_PLUGIN_KEY=
 ERECHT24_LANGUAGE=de
 ERECHT24_CACHE_ENABLED=true
 ERECHT24_CACHE_TTL=3600
 ```
 
-`ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
+`ERECHT24_PLUGIN_KEY` may be left unset when you only have an API key. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
 
 ## Usage
 
@@ -94,4 +100,3 @@ This package is technical integration software and is not legal advice. Users ar
 This wrapper package is open-sourced software licensed under the MIT license.
 
 It depends on `erecht24/rechtstexte-sdk`, which has its own license and terms.
-
