@@ -120,6 +120,30 @@ it('throws for unsupported document types', function () {
     expect(fn () => $service->document('terms'))->toThrow(UnsupportedLegalTextTypeException::class);
 });
 
+it('uses the configured plugin key when one is set', function () {
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $service->imprint();
+
+    expect($client->pluginKeys)->toBe(['plugin-key']);
+});
+
+it('uses the configured plugin key fallback from config', function () {
+    $this->app['config']->set('erecht24.plugin_key', '3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v');
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $service->imprint();
+
+    expect($client->pluginKeys)->toBe(['3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v']);
+});
+
 it('caches successful responses when cache is enabled', function () {
     $this->app['config']->set('erecht24.cache.enabled', true);
 
@@ -132,6 +156,93 @@ it('caches successful responses when cache is enabled', function () {
     $service->imprint();
 
     expect($client->calls)->toBe(1);
+});
+
+it('stores cache entries as scalar payloads for serialized cache stores', function () {
+    useSerializedArrayCache();
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $firstDocument = $service->imprint();
+    $secondDocument = $service->imprint();
+
+    expect($firstDocument)
+        ->toBeInstanceOf(LegalTextData::class)
+        ->and($secondDocument)->toBeInstanceOf(LegalTextData::class)
+        ->and($secondDocument->html)->toBe('<p>Deutsch</p>')
+        ->and($client->calls)->toBe(1)
+        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+            'type' => LegalTextType::Imprint->value,
+            'html' => '<p>Deutsch</p>',
+            'language' => 'de',
+        ]);
+});
+
+it('migrates legacy cached objects to scalar payloads', function () {
+    useSerializedArrayCache();
+
+    $this->app['cache']->store()->put(
+        'erecht24:imprint:de',
+        new LegalTextData(
+            type: LegalTextType::Imprint,
+            html: '<p>Legacy cached object.</p>',
+            htmlDe: '<p>Legacy cached object.</p>',
+            htmlEn: null,
+            warnings: null,
+            createdAt: null,
+            modifiedAt: null,
+            pushedAt: null,
+            language: 'de',
+        ),
+        3600,
+    );
+
+    $legacyObjectUnserializesSafely = $this->app['cache']->store()->get('erecht24:imprint:de') instanceof LegalTextData;
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $document = $service->imprint();
+    $expectedHtml = $legacyObjectUnserializesSafely ? '<p>Legacy cached object.</p>' : '<p>Deutsch</p>';
+    $expectedCalls = $legacyObjectUnserializesSafely ? 0 : 1;
+
+    expect($document)
+        ->toBeInstanceOf(LegalTextData::class)
+        ->and($document->html)->toBe($expectedHtml)
+        ->and($client->calls)->toBe($expectedCalls)
+        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+            'type' => LegalTextType::Imprint->value,
+            'html' => $expectedHtml,
+            'language' => 'de',
+        ]);
+});
+
+it('refreshes invalid cache entries', function () {
+    useSerializedArrayCache();
+
+    $this->app['cache']->store()->put('erecht24:imprint:de', 'invalid-cache-value', 3600);
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $document = $service->imprint();
+
+    expect($document)
+        ->toBeInstanceOf(LegalTextData::class)
+        ->and($document->html)->toBe('<p>Deutsch</p>')
+        ->and($client->calls)->toBe(1)
+        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+            'type' => LegalTextType::Imprint->value,
+            'html' => '<p>Deutsch</p>',
+            'language' => 'de',
+        ]);
 });
 
 it('clears document-specific cache keys', function () {
@@ -171,6 +282,16 @@ function makeERecht24Service(LegalTextClient $client): ERecht24
     );
 }
 
+function useSerializedArrayCache(): void
+{
+    app('config')->set('erecht24.cache.enabled', true);
+    app('config')->set('cache.default', 'array');
+    app('config')->set('cache.stores.array.serialize', true);
+    app('config')->set('cache.serializable_classes', false);
+    app('cache')->forgetDriver('array');
+    app('cache')->store()->flush();
+}
+
 function legalTextFor(LegalTextType $type): LegalText
 {
     $attributes = [
@@ -194,6 +315,11 @@ final class FakeLegalTextClient implements LegalTextClient
     public int $calls = 0;
 
     /**
+     * @var array<int, string|null>
+     */
+    public array $pluginKeys = [];
+
+    /**
      * @param  array<string, LegalText>  $documents
      */
     public function __construct(private readonly array $documents = []) {}
@@ -201,6 +327,7 @@ final class FakeLegalTextClient implements LegalTextClient
     public function get(LegalTextType $type, string $apiKey, ?string $pluginKey = null): LegalText
     {
         $this->calls++;
+        $this->pluginKeys[] = $pluginKey;
 
         return $this->documents[$type->value] ?? legalTextFor($type);
     }
