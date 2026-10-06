@@ -17,7 +17,7 @@ use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 
 class ERecht24
 {
-    public const DEVELOPER_KEY = 'vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm';
+    public const DEVELOPER_KEY = 'nJ85RSm5HARYP4poy3bXip6VZQsxoEe1EvXQ36nuYU68fNhepigKBFUDreW1Z9iG';
 
     private const MAX_HTML_BYTES = 1_048_576;
 
