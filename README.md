@@ -27,14 +27,12 @@ ERECHT24_API_KEY=
 Optional configuration:
 
 ```dotenv
-# Optional override for a different registered integration.
-ERECHT24_PLUGIN_KEY=
 ERECHT24_LANGUAGE=de
 ERECHT24_CACHE_ENABLED=true
 ERECHT24_CACHE_TTL=3600
 ```
 
-The registered Pirabyte developer key is included. Leave `ERECHT24_PLUGIN_KEY` unset to use it. Your project API key is private and must stay in server configuration. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
+The registered pirabyte developer key is included in the package. You only supply your private project API key, which must stay in server configuration. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
 
 ## Usage
 
@@ -100,7 +98,7 @@ A configured project API key is required, including when serving retained HTML. 
 
 ## Disclaimer
 
-This is an independent third-party project maintained by Pirabyte. It is not an official eRecht24 product and is not developed, maintained, or endorsed by eRecht24. eRecht24 is a trademark of its respective owner.
+This is an independent third-party project maintained by pirabyte. It is not an official eRecht24 product and is not developed, maintained, or endorsed by eRecht24. eRecht24 is a trademark of its respective owner.
 
 This package is technical integration software and is not legal advice. Users are responsible for validating their legal texts and their eRecht24 account/API setup.
 

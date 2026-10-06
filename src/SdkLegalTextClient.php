@@ -11,10 +11,11 @@ use Pirabyte\ERecht24Laravel\Exceptions\ERecht24Exception;
 
 class SdkLegalTextClient implements LegalTextClient
 {
+    // The legacy plugin-key argument remains accepted; this integration uses its registered identifier.
     public function get(LegalTextType $type, string $apiKey, ?string $pluginKey = null): LegalText
     {
         try {
-            $apiHandler = $this->makeApiHandler($apiKey, $pluginKey);
+            $apiHandler = $this->makeApiHandler($apiKey, ERecht24::DEVELOPER_KEY);
 
             $document = match ($type) {
                 LegalTextType::Imprint => $apiHandler->getImprint(),
@@ -39,6 +40,6 @@ class SdkLegalTextClient implements LegalTextClient
      */
     protected function makeApiHandler(string $apiKey, ?string $pluginKey): ApiHandler
     {
-        return new ApiHandler($apiKey, $pluginKey);
+        return new ApiHandler($apiKey, ERecht24::DEVELOPER_KEY);
     }
 }

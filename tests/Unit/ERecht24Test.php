@@ -22,7 +22,6 @@ uses(TestCase::class);
 
 beforeEach(function () {
     $this->app['config']->set('erecht24.api_key', 'api-key');
-    $this->app['config']->set('erecht24.plugin_key', 'plugin-key');
     $this->app['config']->set('erecht24.language', 'de');
     $this->app['config']->set('erecht24.cache.enabled', false);
     $this->app['cache']->store()->flush();
@@ -120,28 +119,19 @@ it('throws for unsupported document types', function () {
     expect(fn () => $service->document('terms'))->toThrow(UnsupportedLegalTextTypeException::class);
 });
 
-it('uses the configured plugin key when one is set', function () {
-    $client = new FakeLegalTextClient([
-        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
-    ]);
-    $service = makeERecht24Service($client);
+it('uses the bundled developer key despite legacy project configuration and environment overrides', function () {
+    $this->app['config']->set('erecht24.plugin_key', 'legacy-config-key');
+    $previous = getenv('ERECHT24_PLUGIN_KEY');
+    putenv('ERECHT24_PLUGIN_KEY=legacy-env-key');
 
-    $service->imprint();
+    try {
+        $client = new FakeLegalTextClient;
+        makeERecht24Service($client)->imprint();
 
-    expect($client->pluginKeys)->toBe(['plugin-key']);
-});
-
-it('uses the configured plugin key fallback from config', function () {
-    $this->app['config']->set('erecht24.plugin_key', 'vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm');
-
-    $client = new FakeLegalTextClient([
-        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
-    ]);
-    $service = makeERecht24Service($client);
-
-    $service->imprint();
-
-    expect($client->pluginKeys)->toBe(['vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm']);
+        expect($client->pluginKeys)->toBe([ERecht24::DEVELOPER_KEY]);
+    } finally {
+        putenv($previous === false ? 'ERECHT24_PLUGIN_KEY' : 'ERECHT24_PLUGIN_KEY='.$previous);
+    }
 });
 
 it('caches successful responses when cache is enabled', function () {

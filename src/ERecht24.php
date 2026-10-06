@@ -17,6 +17,8 @@ use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 
 class ERecht24
 {
+    public const DEVELOPER_KEY = 'vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm';
+
     private const MAX_HTML_BYTES = 1_048_576;
 
     public function __construct(
@@ -45,10 +47,9 @@ class ERecht24
         $type = LegalTextType::fromValue($type);
         $language = Language::normalize($language, $this->defaultLanguage());
         $apiKey = $this->apiKeyOrFail();
-        $pluginKey = $this->pluginKey();
 
         if (! $this->cacheEnabled()) {
-            return $this->fetchDocument($type, $language, $apiKey, $pluginKey);
+            return $this->fetchDocument($type, $language, $apiKey);
         }
 
         $cache = $this->cacheRepository();
@@ -59,7 +60,7 @@ class ERecht24
             return $cachedDocument;
         }
 
-        $document = $this->fetchDocument($type, $language, $apiKey, $pluginKey);
+        $document = $this->fetchDocument($type, $language, $apiKey);
 
         $cache->put($cacheKey, $this->toCachePayload($document), $this->cacheTtl());
 
@@ -157,11 +158,10 @@ class ERecht24
         LegalTextType $type,
         string $language,
         string $apiKey,
-        ?string $pluginKey,
     ): LegalTextData {
         return $this->toData(
             $type,
-            $this->client->get($type, $apiKey, $pluginKey),
+            $this->client->get($type, $apiKey, self::DEVELOPER_KEY),
             $language,
         );
     }
@@ -286,11 +286,6 @@ class ERecht24
         return $apiKey === '' ? null : $apiKey;
     }
 
-    private function pluginKey(): ?string
-    {
-        return $this->configuredString('erecht24.plugin_key');
-    }
-
     private function defaultLanguage(): string
     {
         $language = $this->config->get('erecht24.language', Language::German->value);
@@ -304,19 +299,6 @@ class ERecht24
             $this->config->get('erecht24.cache.enabled', true),
             FILTER_VALIDATE_BOOLEAN,
         );
-    }
-
-    private function configuredString(string $key): ?string
-    {
-        $value = $this->config->get($key);
-
-        if (! is_string($value)) {
-            return null;
-        }
-
-        $value = trim($value);
-
-        return $value === '' ? null : $value;
     }
 
     private function cacheRepository(): CacheRepository

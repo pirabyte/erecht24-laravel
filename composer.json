@@ -9,7 +9,11 @@
         "rechtstexte",
         "legal",
         "imprint",
-        "privacy-policy"
+        "privacy-policy",
+        "impressum",
+        "datenschutz",
+        "gdpr",
+        "dsgvo"
     ],
     "require": {
         "php": "^8.2",
@@ -56,4 +60,3 @@
         }
     }
 }
-
