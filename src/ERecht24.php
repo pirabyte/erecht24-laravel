@@ -12,9 +12,13 @@ use Pirabyte\ERecht24Laravel\Enums\Language;
 use Pirabyte\ERecht24Laravel\Enums\LegalTextType;
 use Pirabyte\ERecht24Laravel\Exceptions\ERecht24Exception;
 use Pirabyte\ERecht24Laravel\Exceptions\MissingApiKeyException;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 
 class ERecht24
 {
+    private const MAX_HTML_BYTES = 1_048_576;
+
     public function __construct(
         private readonly LegalTextClient $client,
         private readonly ConfigRepository $config,
@@ -76,7 +80,7 @@ class ERecht24
 
         try {
             $document = $this->document($type, $language);
-            $html = $language === Language::English->value ? $document->htmlEn : $document->htmlDe;
+            $html = $this->sanitizeHtml($language === Language::English->value ? $document->htmlEn : $document->htmlDe);
 
             if (! $this->isUsableHtml($html)) {
                 throw new ERecht24Exception('The requested eRecht24 legal text is unavailable.');
@@ -89,7 +93,7 @@ class ERecht24
             return $html;
         } catch (ERecht24Exception $exception) {
             if ($this->cacheEnabled()) {
-                $html = $this->cacheRepository()->get($cacheKey);
+                $html = $this->sanitizeHtml($this->cacheRepository()->get($cacheKey));
 
                 if ($this->isUsableHtml($html)) {
                     return $html;
@@ -118,9 +122,35 @@ class ERecht24
         }
     }
 
-    private function isUsableHtml(mixed $html): bool
+    private function isUsableHtml(string $html): bool
     {
-        return is_string($html) && trim(strip_tags($html)) !== '';
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return preg_match('/[^\s\p{Z}\p{Cf}]/u', $text) === 1;
+    }
+
+    private function sanitizeHtml(mixed $html): string
+    {
+        if (! is_string($html) || strlen($html) > self::MAX_HTML_BYTES) {
+            return '';
+        }
+
+        $config = (new HtmlSanitizerConfig)
+            ->allowElement('a', ['href', 'name', 'rel', 'target', 'title'])
+            ->allowLinkSchemes(['http', 'https', 'mailto', 'tel'])
+            ->allowRelativeLinks()
+            ->forceAttribute('a', 'rel', 'noopener noreferrer')
+            ->withMaxInputLength(self::MAX_HTML_BYTES);
+
+        foreach (['b', 'blockquote', 'br', 'em', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'i', 'li', 'ol', 'p', 'strong', 'ul'] as $element) {
+            $config = $config->allowElement($element);
+        }
+
+        foreach (['article', 'div', 'section', 'span'] as $element) {
+            $config = $config->blockElement($element);
+        }
+
+        return (new HtmlSanitizer($config))->sanitize($html);
     }
 
     private function fetchDocument(

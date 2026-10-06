@@ -4,6 +4,8 @@ Please do not open public issues that include private eRecht24 project API keys,
 
 The bundled Pirabyte developer key identifies this integration and is public by design.
 
+`htmlOrLastKnownGood()` uses Symfony HTML Sanitizer before validating, retaining or serving legal text. `html()` and `document()` return raw provider HTML; callers must sanitize it before rendering.
+
 Report vulnerabilities privately to security@pirabyte.io.
 
 Supported versions start at the latest stable `1.x` release.

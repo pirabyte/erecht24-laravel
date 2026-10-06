@@ -92,9 +92,11 @@ Cache entries are isolated by project API key. Changing the key fetches fresh do
 
 Use `clearCache()` to forget all supported document cache keys for the configured project, or pass a `LegalTextType` to clear a single document type.
 
-`htmlOrLastKnownGood()` returns nonempty HTML in the exact requested language. It never substitutes German for a missing English document. When caching is enabled, it retains the last valid HTML without a TTL and serves it if the API fails or the requested language is unavailable. `clearCache()` removes these retained documents too. Disabling caching skips retention and fallback.
+`htmlOrLastKnownGood()` returns sanitized, nonempty HTML in the exact requested language. Headings, paragraphs, emphasis, lists and HTTP, HTTPS, mail and telephone links are preserved. Scripts, styles, media, unsafe links and event handlers are removed before validation or retention. Retained HTML is sanitized again before use. Input larger than 1 MiB is rejected without truncating the legal text. It never substitutes German for a missing English document.
 
-A configured project API key is required, including when serving retained HTML. Removing or changing the key never serves documents retained under the previous key. Existing application-specific fallback entries are not imported. Without valid current or retained HTML, the method throws `ERecht24Exception` so the application can show its unavailable page.
+When caching is enabled, it retains the last valid HTML without a TTL and serves it if the API fails or the requested language is unavailable. `clearCache()` removes these retained documents too. Disabling caching skips retention and fallback.
+
+A configured project API key is required, including when serving retained HTML. Removing or changing the key never serves documents retained under the previous key. Existing application-specific fallback entries are not imported. `html()` and `document()` continue to return raw API HTML. Without valid current or retained HTML, the method throws `ERecht24Exception` so the application can show its unavailable page.
 
 ## Disclaimer
 

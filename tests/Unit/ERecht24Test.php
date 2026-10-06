@@ -250,18 +250,61 @@ it('does not serve last known good HTML with caching disabled or another project
         ->toThrow(MissingApiKeyException::class);
 });
 
-it('preserves last known good HTML when the refreshed requested language is empty', function () {
+it('preserves last known good HTML when refreshed content is unusable after sanitizing', function (string $html) {
     $this->app['config']->set('erecht24.cache.enabled', true);
     $this->app['config']->set('erecht24.cache.ttl', 1);
     makeERecht24Service(new FakeLegalTextClient)->htmlOrLastKnownGood('imprint', 'en');
     $this->travel(2)->seconds();
     $service = makeERecht24Service(new FakeLegalTextClient([
-        'imprint' => new Imprint(['html_de' => '', 'html_en' => '']),
+        'imprint' => new Imprint(['html_de' => '', 'html_en' => $html]),
     ]));
 
     expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>English</p>')
         ->and(fn () => $service->htmlOrLastKnownGood('imprint', 'de'))
         ->toThrow(ERecht24Exception::class);
+})->with([
+    'empty' => '',
+    'script only' => '<script>alert(1)</script>',
+    'style only' => '<style>body { display: none }</style>',
+    'HTML whitespace entities' => '<p>&nbsp;&#160;</p>',
+    'Unicode whitespace' => "<p>\u{2003}\u{200B}</p>",
+    'oversized' => str_repeat('x', 1_048_577),
+]);
+
+it('sanitizes legal HTML before returning and retaining it while preserving raw document access', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $this->app['config']->set('erecht24.cache.ttl', 1);
+    $unsafeHtml = '<div onclick="alert(1)"><h2>Legal notice</h2><script>alert(1)</script><style>body{display:none}</style><p style="color:red">Text <strong>important</strong></p><ul><li>Item</li></ul><img src="x" onerror="alert(1)"><a href="javascript:alert(1)" onclick="alert(1)">Unsafe</a><a href="https://example.com" target="_blank">Safe</a><a href="/contact">Contact</a><a href="mailto:hello@example.com">Email</a><a href="tel:+491234">Call</a></div>';
+    $client = new FakeLegalTextClient([
+        'imprint' => new Imprint(['html_en' => $unsafeHtml]),
+    ]);
+    $service = makeERecht24Service($client);
+    $html = $service->htmlOrLastKnownGood('imprint', 'en');
+
+    expect(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'))->toContain('<h2>Legal notice</h2>', '<p>Text <strong>important</strong></p>', '<ul><li>Item</li></ul>', 'href="https://example.com"', 'href="/contact"', 'href="mailto:hello@example.com"', 'href="tel:+491234"', 'rel="noopener noreferrer"')
+        ->not->toContain('<script', '<style', '<img', 'onclick', 'onerror', 'javascript:', 'style=', 'alert(1)')
+        ->and($service->imprint('en')->htmlEn)->toBe($unsafeHtml);
+
+    $this->travel(2)->seconds();
+    $client->failRequests = true;
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe($html);
+});
+
+it('sanitizes retained HTML again before serving it after an upstream failure', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $client = new FakeLegalTextClient;
+    $client->failRequests = true;
+    $service = makeERecht24Service($client);
+    $cacheKey = 'erecht24:'.hash('sha256', 'api-key').':imprint:en:last-known-good';
+    $this->app['cache']->store()->forever($cacheKey, '<p onclick="alert(1)">Retained</p><script>alert(1)</script>');
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>Retained</p>');
+
+    $this->app['cache']->store()->forever($cacheKey, '<script>alert(1)</script>');
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(ERecht24Exception::class, 'Upstream unavailable.');
 });
 
 it('stores cache entries as scalar payloads for serialized cache stores', function () {
