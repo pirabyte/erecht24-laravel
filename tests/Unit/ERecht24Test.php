@@ -132,7 +132,7 @@ it('uses the configured plugin key when one is set', function () {
 });
 
 it('uses the configured plugin key fallback from config', function () {
-    $this->app['config']->set('erecht24.plugin_key', '3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v');
+    $this->app['config']->set('erecht24.plugin_key', 'vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm');
 
     $client = new FakeLegalTextClient([
         LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
@@ -141,7 +141,7 @@ it('uses the configured plugin key fallback from config', function () {
 
     $service->imprint();
 
-    expect($client->pluginKeys)->toBe(['3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v']);
+    expect($client->pluginKeys)->toBe(['vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm']);
 });
 
 it('caches successful responses when cache is enabled', function () {
@@ -156,6 +156,155 @@ it('caches successful responses when cache is enabled', function () {
     $service->imprint();
 
     expect($client->calls)->toBe(1);
+});
+
+it('isolates cached legal texts and cache clearing between project keys', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+
+    $firstClient = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => new Imprint(['html_de' => '<p>First project</p>']),
+    ]);
+    $secondClient = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => new Imprint(['html_de' => '<p>Second project</p>']),
+    ]);
+    $firstService = makeERecht24Service($firstClient);
+    $secondService = makeERecht24Service($secondClient);
+
+    expect($firstService->imprint()->html)->toBe('<p>First project</p>');
+
+    $this->app['config']->set('erecht24.api_key', 'second-project-key');
+
+    expect($secondService->imprint()->html)->toBe('<p>Second project</p>');
+
+    $secondService->clearCache();
+    $this->app['config']->set('erecht24.api_key', 'api-key');
+
+    expect($firstService->imprint()->html)->toBe('<p>First project</p>')
+        ->and($firstClient->calls)->toBe(1);
+
+    $this->app['config']->set('erecht24.api_key', 'second-project-key');
+
+    expect($secondService->imprint()->html)->toBe('<p>Second project</p>')
+        ->and($secondClient->calls)->toBe(2);
+});
+
+it('returns valid HTML in the exact requested language', function () {
+    $service = makeERecht24Service(new FakeLegalTextClient);
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>English</p>')
+        ->and($service->htmlOrLastKnownGood('imprint', 'de'))->toBe('<p>Deutsch</p>');
+});
+
+it('rejects missing or blank requested HTML without falling back to German', function (?string $html) {
+    $client = new FakeLegalTextClient([
+        'imprint' => new Imprint(['html_de' => '<p>Deutsch</p>', 'html_en' => $html]),
+    ]);
+    $service = makeERecht24Service($client);
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(ERecht24Exception::class, 'The requested eRecht24 legal text is unavailable.');
+})->with([null, '', " \n ", '<p> </p>']);
+
+it('retains last known good HTML after the fresh cache expires', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $this->app['config']->set('erecht24.cache.ttl', 1);
+    $client = new FakeLegalTextClient;
+    $service = makeERecht24Service($client);
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>English</p>');
+
+    $this->travel(2)->seconds();
+    $client->failRequests = true;
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>English</p>')
+        ->and($client->calls)->toBe(2);
+
+    $service->clearCache(LegalTextType::Imprint);
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(ERecht24Exception::class, 'Upstream unavailable.');
+});
+
+it('does not serve last known good HTML with caching disabled or another project key', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $this->app['config']->set('erecht24.cache.ttl', 1);
+    $client = new FakeLegalTextClient;
+    $service = makeERecht24Service($client);
+    $service->htmlOrLastKnownGood('imprint', 'en');
+    $this->travel(2)->seconds();
+    $client->failRequests = true;
+    $this->app['config']->set('erecht24.cache.enabled', false);
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(ERecht24Exception::class, 'Upstream unavailable.');
+
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $this->app['config']->set('erecht24.api_key', 'another-project');
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(ERecht24Exception::class, 'Upstream unavailable.');
+
+    $this->app['config']->set('erecht24.api_key', null);
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(MissingApiKeyException::class);
+});
+
+it('preserves last known good HTML when refreshed content is unusable after sanitizing', function (string $html) {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $this->app['config']->set('erecht24.cache.ttl', 1);
+    makeERecht24Service(new FakeLegalTextClient)->htmlOrLastKnownGood('imprint', 'en');
+    $this->travel(2)->seconds();
+    $service = makeERecht24Service(new FakeLegalTextClient([
+        'imprint' => new Imprint(['html_de' => '', 'html_en' => $html]),
+    ]));
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>English</p>')
+        ->and(fn () => $service->htmlOrLastKnownGood('imprint', 'de'))
+        ->toThrow(ERecht24Exception::class);
+})->with([
+    'empty' => '',
+    'script only' => '<script>alert(1)</script>',
+    'style only' => '<style>body { display: none }</style>',
+    'HTML whitespace entities' => '<p>&nbsp;&#160;</p>',
+    'Unicode whitespace' => "<p>\u{2003}\u{200B}</p>",
+    'oversized' => str_repeat('x', 1_048_577),
+]);
+
+it('sanitizes legal HTML before returning and retaining it while preserving raw document access', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $this->app['config']->set('erecht24.cache.ttl', 1);
+    $unsafeHtml = '<div onclick="alert(1)"><h2>Legal notice</h2><script>alert(1)</script><style>body{display:none}</style><p style="color:red">Text <strong>important</strong></p><ul><li>Item</li></ul><img src="x" onerror="alert(1)"><a href="javascript:alert(1)" onclick="alert(1)">Unsafe</a><a href="https://example.com" target="_blank">Safe</a><a href="/contact">Contact</a><a href="mailto:hello@example.com">Email</a><a href="tel:+491234">Call</a></div>';
+    $client = new FakeLegalTextClient([
+        'imprint' => new Imprint(['html_en' => $unsafeHtml]),
+    ]);
+    $service = makeERecht24Service($client);
+    $html = $service->htmlOrLastKnownGood('imprint', 'en');
+
+    expect(html_entity_decode($html, ENT_QUOTES | ENT_HTML5, 'UTF-8'))->toContain('<h2>Legal notice</h2>', '<p>Text <strong>important</strong></p>', '<ul><li>Item</li></ul>', 'href="https://example.com"', 'href="/contact"', 'href="mailto:hello@example.com"', 'href="tel:+491234"', 'rel="noopener noreferrer"')
+        ->not->toContain('<script', '<style', '<img', 'onclick', 'onerror', 'javascript:', 'style=', 'alert(1)')
+        ->and($service->imprint('en')->htmlEn)->toBe($unsafeHtml);
+
+    $this->travel(2)->seconds();
+    $client->failRequests = true;
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe($html);
+});
+
+it('sanitizes retained HTML again before serving it after an upstream failure', function () {
+    $this->app['config']->set('erecht24.cache.enabled', true);
+    $client = new FakeLegalTextClient;
+    $client->failRequests = true;
+    $service = makeERecht24Service($client);
+    $cacheKey = 'erecht24:'.hash('sha256', 'api-key').':imprint:en:last-known-good';
+    $this->app['cache']->store()->forever($cacheKey, '<p onclick="alert(1)">Retained</p><script>alert(1)</script>');
+
+    expect($service->htmlOrLastKnownGood('imprint', 'en'))->toBe('<p>Retained</p>');
+
+    $this->app['cache']->store()->forever($cacheKey, '<script>alert(1)</script>');
+
+    expect(fn () => $service->htmlOrLastKnownGood('imprint', 'en'))
+        ->toThrow(ERecht24Exception::class, 'Upstream unavailable.');
 });
 
 it('stores cache entries as scalar payloads for serialized cache stores', function () {
@@ -174,7 +323,7 @@ it('stores cache entries as scalar payloads for serialized cache stores', functi
         ->and($secondDocument)->toBeInstanceOf(LegalTextData::class)
         ->and($secondDocument->html)->toBe('<p>Deutsch</p>')
         ->and($client->calls)->toBe(1)
-        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+        ->and($this->app['cache']->store()->get(imprintCacheKey()))->toMatchArray([
             'type' => LegalTextType::Imprint->value,
             'html' => '<p>Deutsch</p>',
             'language' => 'de',
@@ -185,7 +334,7 @@ it('migrates legacy cached objects to scalar payloads', function () {
     useSerializedArrayCache();
 
     $this->app['cache']->store()->put(
-        'erecht24:imprint:de',
+        imprintCacheKey(),
         new LegalTextData(
             type: LegalTextType::Imprint,
             html: '<p>Legacy cached object.</p>',
@@ -200,7 +349,7 @@ it('migrates legacy cached objects to scalar payloads', function () {
         3600,
     );
 
-    $legacyObjectUnserializesSafely = $this->app['cache']->store()->get('erecht24:imprint:de') instanceof LegalTextData;
+    $legacyObjectUnserializesSafely = $this->app['cache']->store()->get(imprintCacheKey()) instanceof LegalTextData;
 
     $client = new FakeLegalTextClient([
         LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
@@ -215,7 +364,7 @@ it('migrates legacy cached objects to scalar payloads', function () {
         ->toBeInstanceOf(LegalTextData::class)
         ->and($document->html)->toBe($expectedHtml)
         ->and($client->calls)->toBe($expectedCalls)
-        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+        ->and($this->app['cache']->store()->get(imprintCacheKey()))->toMatchArray([
             'type' => LegalTextType::Imprint->value,
             'html' => $expectedHtml,
             'language' => 'de',
@@ -225,7 +374,7 @@ it('migrates legacy cached objects to scalar payloads', function () {
 it('refreshes invalid cache entries', function () {
     useSerializedArrayCache();
 
-    $this->app['cache']->store()->put('erecht24:imprint:de', 'invalid-cache-value', 3600);
+    $this->app['cache']->store()->put(imprintCacheKey(), 'invalid-cache-value', 3600);
 
     $client = new FakeLegalTextClient([
         LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
@@ -238,7 +387,7 @@ it('refreshes invalid cache entries', function () {
         ->toBeInstanceOf(LegalTextData::class)
         ->and($document->html)->toBe('<p>Deutsch</p>')
         ->and($client->calls)->toBe(1)
-        ->and($this->app['cache']->store()->get('erecht24:imprint:de'))->toMatchArray([
+        ->and($this->app['cache']->store()->get(imprintCacheKey()))->toMatchArray([
             'type' => LegalTextType::Imprint->value,
             'html' => '<p>Deutsch</p>',
             'language' => 'de',
@@ -266,7 +415,7 @@ it('refreshes cached documents with a different type or language', function (str
         language: $language,
     );
     $cache = $this->app['cache']->store();
-    $cache->put('erecht24:imprint:de', $legacyObject ? $cachedDocument : [
+    $cache->put(imprintCacheKey(), $legacyObject ? $cachedDocument : [
         'type' => $type,
         'html' => $cachedDocument->html,
         'language' => $language,
@@ -285,7 +434,7 @@ it('refreshes cached documents with a different type or language', function (str
         ->and($document->html)->toBe('<p>Deutsch</p>')
         ->and($cachedAgain->html)->toBe('<p>Deutsch</p>')
         ->and($client->calls)->toBe(1)
-        ->and($cache->get('erecht24:imprint:de'))->toMatchArray([
+        ->and($cache->get(imprintCacheKey()))->toMatchArray([
             'type' => LegalTextType::Imprint->value,
             'html' => '<p>Deutsch</p>',
             'language' => 'de',
@@ -366,6 +515,8 @@ final class FakeLegalTextClient implements LegalTextClient
 {
     public int $calls = 0;
 
+    public bool $failRequests = false;
+
     /**
      * @var array<int, string|null>
      */
@@ -381,6 +532,15 @@ final class FakeLegalTextClient implements LegalTextClient
         $this->calls++;
         $this->pluginKeys[] = $pluginKey;
 
+        if ($this->failRequests) {
+            throw new ERecht24Exception('Upstream unavailable.');
+        }
+
         return $this->documents[$type->value] ?? legalTextFor($type);
     }
+}
+
+function imprintCacheKey(): string
+{
+    return 'erecht24:'.hash('sha256', 'api-key').':imprint:de';
 }
