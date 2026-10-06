@@ -91,7 +91,7 @@ Use `clearCache()` to forget all supported document cache keys, or pass a `Legal
 
 ## Disclaimer
 
-Pirabyte is not affiliated with, endorsed by, or sponsored by eRecht24. eRecht24 is a trademark of its respective owner.
+This is an independent third-party project maintained by Pirabyte. It is not an official eRecht24 product and is not developed, maintained, or endorsed by eRecht24. eRecht24 is a trademark of its respective owner.
 
 This package is technical integration software and is not legal advice. Users are responsible for validating their legal texts and their eRecht24 account/API setup.
 
