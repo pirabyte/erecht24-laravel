@@ -27,14 +27,14 @@ ERECHT24_API_KEY=
 Optional configuration:
 
 ```dotenv
-# Only set this if eRecht24 provided a plugin key for your integration.
+# Optional override for a different registered integration.
 ERECHT24_PLUGIN_KEY=
 ERECHT24_LANGUAGE=de
 ERECHT24_CACHE_ENABLED=true
 ERECHT24_CACHE_TTL=3600
 ```
 
-`ERECHT24_PLUGIN_KEY` may be left unset when you only have an API key. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
+The registered Pirabyte developer key is included. Leave `ERECHT24_PLUGIN_KEY` unset to use it. Your project API key is private and must stay in server configuration. `ERECHT24_CACHE_STORE` and `ERECHT24_CACHE_PREFIX` are also available in the published config.
 
 ## Usage
 
@@ -65,6 +65,7 @@ $erecht24->privacyPolicy();
 $erecht24->privacyPolicySocialMedia();
 $erecht24->document(LegalTextType::Imprint);
 $erecht24->html(LegalTextType::PrivacyPolicy);
+$erecht24->htmlOrLastKnownGood(LegalTextType::PrivacyPolicy, 'en');
 $erecht24->isConfigured();
 $erecht24->clearCache();
 ```
@@ -84,10 +85,16 @@ Terms of Service documents are not supported by this package because the SDK doe
 Successful responses are cached when `erecht24.cache.enabled` is true. Cache keys use this format:
 
 ```text
-erecht24:privacy_policy:de
+erecht24:<project-key-sha256>:privacy_policy:de
 ```
 
-Use `clearCache()` to forget all supported document cache keys, or pass a `LegalTextType` to clear a single document type.
+Cache entries are isolated by project API key. Changing the key fetches fresh documents. Existing entries expire after their configured TTL.
+
+Use `clearCache()` to forget all supported document cache keys for the configured project, or pass a `LegalTextType` to clear a single document type.
+
+`htmlOrLastKnownGood()` returns nonempty HTML in the exact requested language. It never substitutes German for a missing English document. When caching is enabled, it retains the last valid HTML without a TTL and serves it if the API fails or the requested language is unavailable. `clearCache()` removes these retained documents too. Disabling caching skips retention and fallback.
+
+A configured project API key is required, including when serving retained HTML. Removing or changing the key never serves documents retained under the previous key. Existing application-specific fallback entries are not imported. Without valid current or retained HTML, the method throws `ERecht24Exception` so the application can show its unavailable page.
 
 ## Disclaimer
 

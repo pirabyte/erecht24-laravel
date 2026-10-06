@@ -11,7 +11,7 @@ it('merges the default config', function () {
         ->toBeArray()
         ->toHaveKey('api_key')
         ->toHaveKey('plugin_key')
-        ->and(config('erecht24.plugin_key'))->toBe('3jh4uhn8u69i97kj9timk466748996ikhkjhlk67plli08lhkijgh8z4363gr53v')
+        ->and(config('erecht24.plugin_key'))->toBe('vRuG4GQHxYb9MkxU3HURJTyDUHyDyE3scTV4vzzR8VPHbwyT3krWzM6vS4vmeqfm')
         ->and(config('erecht24.language'))->toBe('de')
         ->and(config('erecht24.cache.enabled'))->toBeTrue()
         ->and(config('erecht24.cache.ttl'))->toBe(3600)

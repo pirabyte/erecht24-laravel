@@ -1,6 +1,8 @@
 # Security Policy
 
-Please do not open public issues that include eRecht24 API keys, plugin keys, legal text secrets, or account-specific integration details.
+Please do not open public issues that include private eRecht24 project API keys, legal text secrets, or account-specific integration details.
+
+The bundled Pirabyte developer key identifies this integration and is public by design.
 
 Report vulnerabilities privately to security@pirabyte.io.
 

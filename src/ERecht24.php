@@ -10,6 +10,7 @@ use Pirabyte\ERecht24Laravel\Contracts\LegalTextClient;
 use Pirabyte\ERecht24Laravel\Data\LegalTextData;
 use Pirabyte\ERecht24Laravel\Enums\Language;
 use Pirabyte\ERecht24Laravel\Enums\LegalTextType;
+use Pirabyte\ERecht24Laravel\Exceptions\ERecht24Exception;
 use Pirabyte\ERecht24Laravel\Exceptions\MissingApiKeyException;
 
 class ERecht24
@@ -66,6 +67,39 @@ class ERecht24
         return $this->document($type, $language)->html;
     }
 
+    public function htmlOrLastKnownGood(LegalTextType|string $type, ?string $language = null): string
+    {
+        $type = LegalTextType::fromValue($type);
+        $language = Language::normalize($language, $this->defaultLanguage());
+        $this->apiKeyOrFail();
+        $cacheKey = $this->cacheKey($type, $language).':last-known-good';
+
+        try {
+            $document = $this->document($type, $language);
+            $html = $language === Language::English->value ? $document->htmlEn : $document->htmlDe;
+
+            if (! $this->isUsableHtml($html)) {
+                throw new ERecht24Exception('The requested eRecht24 legal text is unavailable.');
+            }
+
+            if ($this->cacheEnabled()) {
+                $this->cacheRepository()->forever($cacheKey, $html);
+            }
+
+            return $html;
+        } catch (ERecht24Exception $exception) {
+            if ($this->cacheEnabled()) {
+                $html = $this->cacheRepository()->get($cacheKey);
+
+                if ($this->isUsableHtml($html)) {
+                    return $html;
+                }
+            }
+
+            throw $exception;
+        }
+    }
+
     public function isConfigured(): bool
     {
         return $this->apiKey() !== null;
@@ -77,9 +111,16 @@ class ERecht24
 
         foreach ($types as $legalTextType) {
             foreach (Language::cases() as $language) {
-                $this->cacheRepository()->forget($this->cacheKey($legalTextType, $language->value));
+                $cacheKey = $this->cacheKey($legalTextType, $language->value);
+                $this->cacheRepository()->forget($cacheKey);
+                $this->cacheRepository()->forget($cacheKey.':last-known-good');
             }
         }
+    }
+
+    private function isUsableHtml(mixed $html): bool
+    {
+        return is_string($html) && trim(strip_tags($html)) !== '';
     }
 
     private function fetchDocument(
@@ -275,6 +316,8 @@ class ERecht24
         $prefix = $this->config->get('erecht24.cache.prefix', 'erecht24');
         $prefix = is_string($prefix) && trim($prefix) !== '' ? trim($prefix, ':') : 'erecht24';
 
-        return "{$prefix}:{$type->value}:{$language}";
+        $project = hash('sha256', $this->apiKey() ?? '');
+
+        return "{$prefix}:{$project}:{$type->value}:{$language}";
     }
 }
