@@ -48,7 +48,7 @@ class ERecht24
 
         $cache = $this->cacheRepository();
         $cacheKey = $this->cacheKey($type, $language);
-        $cachedDocument = $this->cachedDocument($cache, $cacheKey);
+        $cachedDocument = $this->cachedDocument($cache, $cacheKey, $type, $language);
 
         if ($cachedDocument instanceof LegalTextData) {
             return $cachedDocument;
@@ -114,22 +114,21 @@ class ERecht24
         );
     }
 
-    private function cachedDocument(CacheRepository $cache, string $cacheKey): ?LegalTextData
-    {
+    private function cachedDocument(
+        CacheRepository $cache,
+        string $cacheKey,
+        LegalTextType $type,
+        string $language,
+    ): ?LegalTextData {
         $cached = $cache->get($cacheKey);
+        $document = is_array($cached) ? $this->fromCachePayload($cached) : $cached;
 
-        if (is_array($cached)) {
-            $document = $this->fromCachePayload($cached);
-
-            if ($document instanceof LegalTextData) {
-                return $document;
+        if ($document instanceof LegalTextData && $document->type === $type && $document->language === $language) {
+            if ($cached instanceof LegalTextData) {
+                $cache->put($cacheKey, $this->toCachePayload($document), $this->cacheTtl());
             }
-        }
 
-        if ($cached instanceof LegalTextData) {
-            $cache->put($cacheKey, $this->toCachePayload($cached), $this->cacheTtl());
-
-            return $cached;
+            return $document;
         }
 
         if ($cached !== null) {

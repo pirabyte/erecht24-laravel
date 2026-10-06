@@ -245,6 +245,58 @@ it('refreshes invalid cache entries', function () {
         ]);
 });
 
+it('refreshes cached documents with a different type or language', function (string $type, string $language, bool $legacyObject) {
+    useSerializedArrayCache();
+
+    if ($legacyObject) {
+        // Keep legacy DTOs readable to verify migration validation on every Laravel version.
+        $this->app['config']->set('cache.stores.array.serialize', false);
+        $this->app['cache']->forgetDriver('array');
+    }
+
+    $cachedDocument = new LegalTextData(
+        type: LegalTextType::from($type),
+        html: '<p>Wrong document</p>',
+        htmlDe: '<p>Wrong document</p>',
+        htmlEn: null,
+        warnings: null,
+        createdAt: null,
+        modifiedAt: null,
+        pushedAt: null,
+        language: $language,
+    );
+    $cache = $this->app['cache']->store();
+    $cache->put('erecht24:imprint:de', $legacyObject ? $cachedDocument : [
+        'type' => $type,
+        'html' => $cachedDocument->html,
+        'language' => $language,
+    ], 3600);
+
+    $client = new FakeLegalTextClient([
+        LegalTextType::Imprint->value => legalTextFor(LegalTextType::Imprint),
+    ]);
+    $service = makeERecht24Service($client);
+
+    $document = $service->imprint();
+    $cachedAgain = $service->imprint();
+
+    expect($document->type)->toBe(LegalTextType::Imprint)
+        ->and($document->language)->toBe('de')
+        ->and($document->html)->toBe('<p>Deutsch</p>')
+        ->and($cachedAgain->html)->toBe('<p>Deutsch</p>')
+        ->and($client->calls)->toBe(1)
+        ->and($cache->get('erecht24:imprint:de'))->toMatchArray([
+            'type' => LegalTextType::Imprint->value,
+            'html' => '<p>Deutsch</p>',
+            'language' => 'de',
+        ]);
+})->with([
+    'payload with wrong document' => ['privacy_policy', 'de', false],
+    'payload with wrong language' => ['imprint', 'en', false],
+    'legacy object with wrong document' => ['privacy_policy', 'de', true],
+    'legacy object with wrong language' => ['imprint', 'en', true],
+]);
+
 it('clears document-specific cache keys', function () {
     $this->app['config']->set('erecht24.cache.enabled', true);
 
